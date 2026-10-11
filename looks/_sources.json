@@ -1,0 +1,31 @@
+{
+  "_note": "Additive offsets applied on top of a look, by detected source type. Looks are calibrated on phone_processed files, so that class has no offsets. The others are UNVERIFIED guesses.",
+  "phone_processed": {
+    "note": "Looks are calibrated on these (iPhone HEIC/JPEG edited in Photos).",
+    "offsets": {}
+  },
+  "phone_raw": {
+    "note": "ProRAW/DNG: flatter than the processed file, still some Apple tone mapping baked in.",
+    "offsets": {
+      "contrast": 0.08
+    }
+  },
+  "camera_raw": {
+    "note": "Flat, unprocessed: needs more contrast and some sharpening.",
+    "offsets": {
+      "contrast": 0.1,
+      "sharpen": 0.05
+    }
+  },
+  "camera_jpeg": {
+    "note": "Already rendered by the camera; treat as neutral.",
+    "offsets": {}
+  },
+  "unknown": {
+    "note": "No EXIF: likely a screenshot or social-media re-save. Be gentle; compression artifacts get exaggerated.",
+    "offsets": {
+      "sharpen": -0.1,
+      "clarity": -0.05
+    }
+  }
+}

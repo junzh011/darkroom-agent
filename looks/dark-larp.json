@@ -1,0 +1,51 @@
+{
+  "_status": "Calibrated 2026-10-10 on 9 iPhone before/after pairs (evals/larp-shoot-1, tools/calibrate.py). Base = median of 8 pairs (02 excluded as a different style). Leave-one-out error 0.029 vs 0.070 unedited.",
+  "_description": "The author's signature: mid-tones pulled down with brightness while lights stay bright, a little warmer, colour slightly richer. No grain, vignette, or colour wash.",
+  "exposure_ev": -0.14,
+  "brightness": -0.33,
+  "contrast": 0.05,
+  "highlights": 0.06,
+  "saturation": 0.07,
+  "wb": {
+    "temp": 0.19,
+    "tint": 0.0
+  },
+  "skin_protect": 0.5,
+  "scenes": {
+    "night": {
+      "_when": "Night/indoor lit by lamps, candles, LED strips; also most landscapes and general scenes. Same as the base.",
+      "_from": "pairs 01, 03, 06, 09 (close fits); 07 and 10 also near it"
+    },
+    "lit-subject-in-dark": {
+      "_when": "A lit subject (person, outfit, watches) surrounded by near-black. Keeps texture in the subject.",
+      "_from": "pair 05",
+      "exposure_ev": 0.04,
+      "contrast": 0.19,
+      "shadows": 0.19,
+      "blacks": 0.28
+    },
+    "daylight": {
+      "_when": "Bright daytime street, cars, architecture, hard sun.",
+      "_from": "pair 04",
+      "exposure_ev": -0.55,
+      "contrast": 0.17,
+      "blacks": -0.23,
+      "saturation": 0.03,
+      "wb": {
+        "temp": 0.2
+      }
+    },
+    "cool-muted": {
+      "_when": "OPT-IN ONLY: the user asks for a cold, washed-out look. Not for landscapes in general (tested on 3 landscapes: wrong).",
+      "_from": "pair 02",
+      "exposure_ev": -0.53,
+      "brightness": 0.1,
+      "highlights": 0.9,
+      "saturation": -0.5,
+      "wb": {
+        "temp": -0.5,
+        "tint": -0.2
+      }
+    }
+  }
+}

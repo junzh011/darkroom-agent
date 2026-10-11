@@ -1,0 +1,9 @@
+# eval photos/videos are private: ignore everything in evals/ except the README
+evals/*
+!evals/README.md
+work/
+*_preview*.jpg
+*_graded.jpg
+*_compare.jpg
+__pycache__/
+.DS_Store
