@@ -184,6 +184,7 @@ def stage_exposure_wb(rgb, p, report):
         want = np.log2(max(srgb_to_linear(target), 1e-4) / max(srgb_to_linear(max(med, 1e-3)), 1e-4))
         lim = float(ae.get("max_ev", 1.5))
         auto = float(np.clip(want, -lim, lim)) * float(ae.get("strength", 0.8))
+        auto = min(auto, float(ae.get("max_lift", lim)))  # max_lift 0 = darken only, never brighten
         if auto > 0:  # don't let auto-exposure blow out highlights
             p99 = float(np.percentile(luma(rgb[::4, ::4]), 99))
             head = np.log2(1.0 / max(srgb_to_linear(max(p99, 0.05)), 1e-4)) + 0.3
@@ -297,12 +298,19 @@ def stage_colour(x, p):
     return np.clip(x, 0, 1)
 
 
-def stage_skin_protect(orig, x, strength):
+def stage_skin_protect(orig, x, strength, report=None):
     if strength <= 0:
         return x
     m = skin_mask(orig)
     if float(m.max()) < 0.05:
         return x
+    cover = float((m > 0.5).mean())
+    if cover > 0.40:  # close-ups can be 30% real skin; beyond ~40% it's warm stone, wood or a sepia grade fooling the detector
+        strength *= max(0.0, 1.0 - (cover - 0.40) / 0.30)
+        if report is not None:
+            report["skin_protect_reduced"] = {"mask_coverage": round(cover, 3), "effective_strength": round(strength, 3)}
+        if strength <= 0:
+            return x
     h0 = rgb_to_hsv(orig)[..., 0]
     g = rgb_to_hsv(x)
     dh = ((h0 - g[..., 0] + 180) % 360) - 180
@@ -361,7 +369,7 @@ def grade_array(rgb: np.ndarray, params: dict, report: dict | None = None) -> np
     if lut and lut.get("path"):
         path = lut["path"] if os.path.isabs(lut["path"]) else os.path.join(ROOT, lut["path"])
         x = apply_lut(x, lut_from_cube(path), float(lut.get("strength", 1.0)))
-    x = stage_skin_protect(rgb, x, float(params.get("skin_protect", 0.6)))
+    x = stage_skin_protect(rgb, x, float(params.get("skin_protect", 0.6)), report)
     return stage_effects(x, params, report)
 
 

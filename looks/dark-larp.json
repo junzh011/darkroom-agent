@@ -25,15 +25,17 @@
       "blacks": 0.28
     },
     "daylight": {
-      "_when": "Bright daytime street, cars, architecture, hard sun.",
-      "_from": "pair 04",
-      "exposure_ev": -0.55,
-      "contrast": 0.17,
-      "blacks": -0.23,
-      "saturation": 0.03,
-      "wb": {
-        "temp": 0.2
-      }
+      "_when": "Bright, open daytime (input mids above ~0.38): street, cars, architecture, sunlit mountains. Normalises exposure toward mids ~0.35 instead of a fixed darkening. NOT for dark subjects that HDR brightened (open water, dark hills, dark interior with a bright window): those stay on night. Dim or overcast daytime also stays on night.",
+      "_from": "pairs 04, 07, 10 (09 overcast checked unharmed); error vs the author's edits 0.020, old fixed -0.55 EV version 0.070",
+      "exposure_ev": 0.0,
+      "auto_exposure": {
+        "median": 0.48,
+        "strength": 1.0,
+        "max_ev": 1.5,
+        "max_lift": 0.1
+      },
+      "contrast": 0.12,
+      "blacks": -0.15
     },
     "cool-muted": {
       "_when": "OPT-IN ONLY: the user asks for a cold, washed-out look. Not for landscapes in general (tested on 3 landscapes: wrong).",
@@ -46,6 +48,79 @@
         "temp": -0.5,
         "tint": -0.2
       }
+    },
+    "quiet-luxury": {
+      "_when": "OPT-IN ONLY, and only when the subject suits it: classic/old stone architecture, vintage cars, candlelit or wood interiors, autumn streets, muted natural materials. Not for modern glass and steel, coloured lighting, strong single-colour subjects or blue-hour skies (reads as a filter). Whole frame toned warm, cool colours muted, no pure whites, exposure normalised dark.",
+      "_from": "8 online reference photos (evals/online-refs), measured not fitted; not the author's own edits",
+      "auto_exposure": {
+        "median": 0.18,
+        "strength": 0.85,
+        "max_ev": 2.0,
+        "max_lift": 0.0
+      },
+      "exposure_ev": 0.0,
+      "brightness": -0.12,
+      "contrast": 0.1,
+      "highlights": -0.2,
+      "wb": {
+        "temp": 0.3,
+        "tint": 0.0
+      },
+      "curves": {
+        "master": [
+          [
+            0,
+            0
+          ],
+          [
+            0.25,
+            0.2
+          ],
+          [
+            0.6,
+            0.5
+          ],
+          [
+            1,
+            0.82
+          ]
+        ]
+      },
+      "vibrance": -0.55,
+      "saturation": -0.1,
+      "hsl": {
+        "green": {
+          "hue": -0.4,
+          "sat": -0.5
+        },
+        "aqua": {
+          "sat": -0.6
+        },
+        "blue": {
+          "sat": -0.35
+        },
+        "purple": {
+          "sat": -0.4
+        },
+        "magenta": {
+          "sat": -0.3
+        }
+      },
+      "color_grade": {
+        "shadows": {
+          "hue": 25,
+          "sat": 0.28
+        },
+        "midtones": {
+          "hue": 25,
+          "sat": 0.32
+        },
+        "highlights": {
+          "hue": 35,
+          "sat": 0.28
+        }
+      },
+      "skin_protect": 0.0
     }
   }
 }

@@ -27,7 +27,7 @@ python3 scripts/grade.py photo.jpg --look dark-larp --preview --compare
 ## Status
 
 Early. The `dark-larp` look is calibrated on 6 iPhone before/after pairs with `tools/calibrate.py`:
-the night base is solid (3 consistent edits), while the other scenes come from one edit each.
+the night base comes from 8 edits and the daylight scene from 3; the remaining scenes come from one example each, and the two opt-in styles (`quiet-luxury`, `cool-muted`) are only used when someone asks for that feel.
 Offsets for ProRAW and camera RAW are untested on real files.
 Global adjustments only, with no masking or local dodge and burn yet.
 

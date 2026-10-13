@@ -13,7 +13,7 @@ All optional; omitted = neutral. Ranges are the useful range, not hard limits.
 |---|---|---|
 | `exposure_ev` | −2…2 | Stops. Moves everything, highlights included. |
 | `brightness` | −1.5…1 | Mid-tones only: black and white stay put. The author's main darkening tool (≈ −0.35). Darkening this way also deepens colour a little. |
-| `auto_exposure` | `{median, strength, max_ev}` | Pushes every photo's median toward one target. **Not used in calibrated looks**: the author darkens dark scenes further rather than normalising them. Only for neutral "fix my exposure" requests. |
+| `auto_exposure` | `{median, strength, max_ev, max_lift}` | Pushes every photo's median toward one target; `max_lift 0` makes it darken-only. **Not used in calibrated looks**: the author darkens dark scenes further rather than normalising them. Only for neutral "fix my exposure" requests. |
 | `wb.temp` / `wb.tint` | −1…1 | + warmer / + magenta. ±1 ≈ half a stop of red/blue shift. Luminance preserved. |
 | `highlights` | −1…1 | − pulls bright regions down (uses neighbourhood brightness, so it behaves like Lightroom's slider, not a curve). |
 | `shadows` | −1…1 | + opens dark regions. Use it to keep texture in black clothing. |
@@ -46,8 +46,9 @@ Each scene comes from only 1–3 example edits, so treat the numbers as a starti
 |---|---|---|---|
 | `night` | The default. Night/indoor scenes lit by lamps, candles, LED strips, and also most landscapes | Base signature: `brightness −0.33`, `exposure −0.14`, `wb.temp +0.19`, `saturation +0.07`. Lights stay bright. | 8 edits; scored on photos it wasn't built from, error 0.070 → 0.029 |
 | `lit-subject-in-dark` | A lit person/outfit/watches against near-black | Adds `contrast +0.2`, `shadows +0.2`, opens deep blacks a little so the subject keeps texture | 1 edit |
-| `daylight` | Daytime street, cars, architecture, hard sun | Much darker: `exposure −0.55`, `contrast +0.17`, `blacks −0.23`; little extra saturation | 1 edit |
+| `daylight` | Bright daytime (input mids above ~0.38): street, cars, architecture, sunlit mountains | Not a fixed darkening: normalises exposure toward mids ≈0.35 (`auto_exposure` median 0.48 before the brightness drop, lift capped at +0.1 EV), then `contrast +0.12`, `blacks −0.15`. Dim or overcast daytime (mids below ~0.38) stays on `night` | 3 edits (04, 07, 10); error vs the author's edits 0.020, versus 0.070 for the old fixed −0.55 EV version |
 | `cool-muted` | **Opt-in only**, when the user asks for a cold, washed-out look | Muted (`saturation −0.5`), cooler, clouds kept bright with `highlights +0.9`, no brightness drop | 1 edit. Tested on 3 landscapes and was wrong for them, so never pick it just because a photo is a landscape |
+| `quiet-luxury` | **Opt-in only, and only when the subject suits it:** classic or old stone architecture, vintage cars, candlelit or wood interiors, autumn streets, muted natural materials. It does **not** suit modern glass and steel, coloured lighting (LED strips, a red bar wall), strong single-colour subjects or blue-hour skies; there it reads as a filter. If the photo doesn't fit, say so and show `night` instead | A different kind of look: the whole frame is toned warm (`color_grade` at hue 25), weak colours are muted while strong subject colours survive (`vibrance −0.55`), whites are capped at ~0.8, and exposure is normalised dark (`auto_exposure` median 0.18, darken-only). Skin protection is off on purpose. | Measured from 8 online reference photos, not the author's edits. Tried on the author's modern-city, bar and table photos and rejected: the subjects didn't fit, at any strength. Fit matters more than strength |
 
 If a photo fits none of these, use `night` and adjust. Say which scene you treated it as.
 
@@ -55,6 +56,8 @@ If a photo fits none of these, use `night` and adjust. Say which scene you treat
 - Already moody (heavy grey sky, dim scene): darken less (`brightness ≈ −0.1`) and add `contrast +0.15` instead.
 - Snow, white peaks, bright sky against dark rock: keep the brights (`highlights +0.35`) and deepen blacks (`blacks −0.25`).
 - Bright, flat daylight: darken more (see `daylight`).
+- **Dark subject in daylight** (open water, dark hillsides or forest, a dark interior with a bright window, a marina at dusk): this is a dark scene even if the phone's HDR made the input bright. Use `night` (darken relative) rather than `daylight`, and let the water or hills go deep while the few highlights stay bright. Measured from reference edits at mids 0.07–0.23 with highlights 0.67–0.84.
+- **Open daylight street scenes** in the reference edits sit at mids 0.39–0.43, a touch lighter than the author's own 0.34–0.37; if a daylight result looks heavy, `exposure_ev +0.1` is within taste.
 
 ## Diagnosis → adjustment
 
@@ -66,6 +69,7 @@ If a photo fits none of these, use `night` and adjust. Say which scene you treat
 | `shadows_already_crushed` | black clothing is a blob | `shadows +0.3`, `blacks 0` or `+0.1`, `fade 0`. |
 | `warm_cast` / `cool_cast` (confidence > 0.05) | cast isn't intentional (tungsten room, shade) | `wb.temp` opposite by about `temp_stops` (e.g. temp_stops 0.4 → `wb.temp −0.6`). Leave golden hour/neon alone. |
 | `skin_present` + `skin_dark` | face lost in shadow | `shadows +0.3`, `skin_protect 0.8`, less vignette. Mention local dodge would do better. |
+| `skin_mask_unreliable` | warm stone, wood, autumn leaves, or an already sepia-toned photo | The detector is reading the scene as skin, so `skin_protect` is reduced automatically (`skin_protect_reduced` in the report). Judge skin by eye; don't raise `skin_protect` to compensate. |
 | `noisy` | night/indoor | `grain` up to cover noise, `sharpen 0`, `clarity ≤ 0.1`. |
 | `no_exif_maybe_recompressed` | blocky JPEG | `sharpen 0`, `clarity 0`, `grain 0.2–0.4` (hides blocks). |
 
@@ -79,6 +83,7 @@ If a photo fits none of these, use `night` and adjust. Say which scene you treat
 - "skin too orange": `hsl.orange.sat −0.2`, `hsl.orange.hue −0.1`.
 - "more film": `grain.amount 0.5`, `halation.amount 0.2`, `fade 0.04`. "cleaner": grain 0, halation 0.
 - "less green": `hsl.green.sat −0.3`, `hsl.green.hue +0.3` (toward teal).
+- "old money" / "quiet luxury" / "sepia" / "vintage warm": use `--scene quiet-luxury` rather than hand-tuning. On top of it, "less brown": `color_grade.midtones.sat 0.2`, `wb.temp 0.15`; "keep the sky blue": `hsl.blue.sat 0`.
 
 ## Device notes (detected as `meta.source_class`)
 

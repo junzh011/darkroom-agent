@@ -82,6 +82,8 @@ def analyze_array(rgb: np.ndarray, meta: dict) -> dict:
         flags.append("skin_present")
         if skin.get("mean_luma", 1) < 0.25:
             flags.append("skin_dark")
+        if skin["fraction"] > 0.40:
+            flags.append("skin_mask_unreliable")  # warm stone/wood/sepia toning reads as skin; trust your eyes instead
     if noise > 0.02:
         flags.append("noisy")
     if meta.get("source_class") == "unknown":

@@ -20,8 +20,11 @@ Only numpy + Pillow are required. Optional, if you can install packages: `pip in
    `python scripts/grade.py PHOTO --look none --preview --out neutral.jpg` and view that.
    Note the subject, the light, what should draw the eye, and anything the numbers miss.
 3. **Decide.** This is the part only you can do. Work out what the photo *is* and pick the matching scene from the look
-   (`--list-looks` shows them; `references/grading-guide.md` → Scenes says when each applies): night interior, lit subject
-   in the dark, daylight, overcast landscape. Then look at what's in frame and adjust for it: light sources and flex items
+   (`--list-looks` shows them; `references/grading-guide.md` → Scenes says when each applies): `night` (the default, also most landscapes),
+   `lit-subject-in-dark`, `daylight`. Two more are opt-in styles, used only when the user asks for that feel:
+   `quiet-luxury` (warm sepia toning, no whites, old-money look) and `cool-muted` (cold, washed out). Even when asked,
+   check the subject suits the style (the guide's Scenes table says what does); if it doesn't, say so and show the base
+   instead of a filter-looking result. Then look at what's in frame and adjust for it: light sources and flex items
    (watches, jewellery, bottles, chrome) keep their highlights; skin stays natural; black outfits keep texture.
    Put any overrides in a small JSON file (e.g. `work/params.json`) so iterations are reproducible. Only override what you can justify.
 4. **Preview.** `python scripts/grade.py PHOTO --look dark-larp --scene night --params work/params.json --preview --compare --out work/preview.jpg`
