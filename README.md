@@ -8,9 +8,20 @@ It works from iPhone HEIC/ProRAW, camera RAW, and plain JPEGs, and adjusts for e
 
 ## Install
 
-- **claude.ai / Claude desktop:** zip the `darkroom-agent` folder and upload it under Settings → Capabilities → Skills
-  (code execution must be enabled).
-- **Claude Code:** copy the folder to `~/.claude/skills/darkroom-agent`.
+**Claude Code on a Mac:** one command, then start a new Claude Code session anywhere and ask it to make a photo dark and moody.
+
+```bash
+git clone https://github.com/junzh011/darkroom-agent.git ~/.claude/skills/darkroom-agent && ~/.claude/skills/darkroom-agent/install.sh
+```
+
+`install.sh` checks for Python 3 with numpy and Pillow and installs them for your user if they're missing.
+Already installed? Update with `git -C ~/.claude/skills/darkroom-agent pull`.
+
+Needs: Claude Code and Python 3 (macOS offers to install its developer tools if `python3` is missing). HEIC photos work
+out of the box on a Mac; on Windows or Linux add `pip install pillow-heif`. RAW/DNG needs `pip install rawpy` everywhere.
+
+**claude.ai / Claude desktop:** zip the folder (without `.git`) and upload it under Settings → Capabilities → Skills
+(code execution must be enabled). Not tested there yet.
 
 ## How it works
 

@@ -10,7 +10,7 @@ Your job is judgment: diagnose the photo, adapt the look to it, check the result
 
 All commands below run from this skill's directory (`cd` into it, or prefix paths with it).
 Requires Python 3 with numpy and Pillow. Check once with `python3 -c "import numpy, PIL"`; if that fails, run
-`python3 -m pip install numpy pillow` and tell the user what you installed. Optional: `pip install pillow-heif rawpy` adds
+`python3 -m pip install --user numpy pillow` (add `--break-system-packages` if a Homebrew Python refuses) and tell the user what you installed. Optional: `pip install pillow-heif rawpy` adds
 HEIC and RAW/DNG support; on a Mac, HEIC also works without it through the built-in `sips`. If a format still can't be read,
 the script says so in plain words. Pass that message on (usually: export the photo as a JPEG and send that).
 
