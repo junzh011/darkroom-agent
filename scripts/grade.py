@@ -28,13 +28,16 @@ from common import (blur, hsv_to_rgb, linear_to_srgb, luma, resize2d, rgb_to_hsv
                     skin_mask, smoothstep, srgb_to_linear)
 from ingest import LoadError, load  # noqa: E402
 
+VERSION = "0.4"
+RECIPE_TAG = 0x9286  # EXIF UserComment, inside the Exif sub-IFD
+
 HSL_BANDS = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"]
 HSL_CENTERS = np.array([0, 30, 60, 120, 180, 240, 275, 320], dtype=np.float32)
 
 KNOWN_KEYS = {
     "auto_exposure", "exposure_ev", "wb", "highlights", "shadows", "whites", "blacks", "brightness", "contrast",
     "contrast_pivot", "fade", "curves", "hsl", "vibrance", "saturation", "color_grade", "lut",
-    "skin_protect", "clarity", "sharpen", "halation", "vignette", "grain", "white_anchor",
+    "skin_protect", "clarity", "sharpen", "halation", "vignette", "grain", "white_anchor", "masks",
 }
 
 
@@ -360,6 +363,119 @@ def stage_effects(x, p, report):
     return np.clip(x, 0, 1)
 
 
+# --- local edits (masks) --------------------------------------------------------
+
+LOCAL_KEYS = {"exposure_ev", "brightness", "contrast", "contrast_pivot", "highlights", "shadows", "whites", "blacks",
+              "saturation", "vibrance", "wb", "clarity", "sharpen"}
+LOCAL_LIMITS = {"exposure_ev": 1.0, "brightness": 0.6, "contrast": 0.5, "highlights": 1.0, "shadows": 1.0, "whites": 0.6,
+                "blacks": 0.6, "saturation": 0.5, "vibrance": 0.5, "clarity": 0.5, "sharpen": 0.5}
+MASK_TINTS = [(1.0, 0.2, 0.2), (0.2, 0.9, 1.0), (1.0, 0.9, 0.2), (0.6, 1.0, 0.3)]
+
+
+def guided_refine(p, guide, radius, eps=1e-3):
+    """Guided filter: snaps a soft mask to the edges of `guide` (luma) so a lift follows a face, not a circle."""
+    mean_i, mean_p = blur(guide, radius), blur(p, radius)
+    var_i = blur(guide * guide, radius) - mean_i * mean_i
+    cov_ip = blur(guide * p, radius) - mean_i * mean_p
+    a = cov_ip / (var_i + eps)
+    b = mean_p - a * mean_i
+    return np.clip(blur(a, radius) * guide + blur(b, radius), 0.0, 1.0).astype(np.float32)
+
+
+def mask_weight(spec: dict, x: np.ndarray) -> np.ndarray:
+    """0..1 weight map for one mask spec. Coordinates are fractions of width/height (x right, y down);
+    radius is a fraction of the long edge."""
+    h, w = x.shape[:2]
+    long = float(max(h, w))
+    t = spec.get("type")
+    if t == "radial":
+        cx, cy = spec.get("center", [0.5, 0.5])
+        r = max(1e-3, float(spec.get("radius", 0.3))) * long
+        aspect = max(0.1, float(spec.get("aspect", 1.0)))  # >1 = taller than wide
+        feather = float(np.clip(spec.get("feather", 0.5), 0.02, 1.0))
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+        d = np.sqrt(((xx - cx * w) / r) ** 2 + ((yy - cy * h) / (r * aspect)) ** 2)
+        wgt = 1.0 - smoothstep(1.0 - feather, 1.0, d)
+    elif t == "linear":
+        (ax, ay), (bx, by) = spec.get("from", [0.5, 0.0]), spec.get("to", [0.5, 0.5])
+        ax, ay, bx, by = ax * w, ay * h, bx * w, by * h
+        vx, vy = bx - ax, by - ay
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+        tt = ((xx - ax) * vx + (yy - ay) * vy) / max(vx * vx + vy * vy, 1e-6)
+        wgt = 1.0 - smoothstep(0.0, 1.0, tt)  # full strength at `from`, zero at `to` and beyond
+    elif t == "luminosity":
+        L = luma(x)
+        lo, hi = float(spec.get("lo", 0.0)), float(spec.get("hi", 1.0))
+        f = max(0.01, float(spec.get("feather", 0.1)))
+        wgt = smoothstep(lo - f, lo + f, L) * (1.0 - smoothstep(hi - f, hi + f, L))
+    elif t == "color":
+        hsv = rgb_to_hsv(x)
+        hue, width = float(spec.get("hue", 0.0)), float(spec.get("width", 30.0))
+        f = max(1.0, float(spec.get("feather", 15.0)))
+        dh = np.abs(((hsv[..., 0] - hue + 180.0) % 360.0) - 180.0)
+        wgt = (1.0 - smoothstep(width, width + f, dh)) * smoothstep(0.05, max(0.06, float(spec.get("min_sat", 0.2))), hsv[..., 1])
+    elif t == "image":  # external mask (e.g. person segmentation): white = selected
+        path = spec["path"] if os.path.isabs(spec["path"]) else os.path.join(ROOT, spec["path"])
+        m = Image.open(path).convert("L").resize((w, h), Image.BILINEAR)
+        wgt = np.asarray(m, dtype=np.float32) / 255.0
+    else:
+        raise SystemExit(f"unknown mask type {t!r}; use radial, linear, luminosity, color or image")
+    if spec.get("invert"):
+        wgt = 1.0 - wgt
+    if spec.get("refine"):
+        wgt = guided_refine(wgt, luma(x), radius=max(4, int(0.012 * long)), eps=float(spec.get("refine_eps", 2e-3)))
+    return np.clip(wgt * float(spec.get("opacity", 1.0)), 0.0, 1.0).astype(np.float32)
+
+
+def apply_local(x: np.ndarray, adjust: dict, warns: list, label: str) -> np.ndarray:
+    adj = {}
+    for k, v in adjust.items():
+        if k not in LOCAL_KEYS:
+            warns.append(f"{label}: '{k}' is not allowed inside a mask, ignored")
+            continue
+        if k in LOCAL_LIMITS and isinstance(v, (int, float)) and abs(v) > LOCAL_LIMITS[k]:
+            warns.append(f"{label}: {k} {v} clamped to ±{LOCAL_LIMITS[k]}")
+            v = float(np.clip(v, -LOCAL_LIMITS[k], LOCAL_LIMITS[k]))
+        adj[k] = v
+    y = stage_exposure_wb(x, adj, {}) if (adj.get("exposure_ev") or adj.get("wb")) else x
+    y = stage_tone(y, adj)
+    y = stage_colour(y, adj)
+    return stage_effects(y, {k: adj[k] for k in ("clarity", "sharpen") if k in adj}, {})
+
+
+def stage_masks(x: np.ndarray, params: dict, report: dict):
+    masks = params.get("masks") or []
+    if not masks:
+        return x, None
+    warns = report.setdefault("warnings", [])
+    overlay = x.copy()
+    # picture edges at a fixed working size, so the boundary crop lands in the same place for previews and finals
+    wh = (max(1, round(x.shape[1] * 1024 / max(x.shape[:2]))), max(1, round(x.shape[0] * 1024 / max(x.shape[:2]))))
+    gy, gx = np.gradient(blur(resize2d(luma(x), wh), 1.5))
+    grad = np.abs(gx) + np.abs(gy)
+    info = []
+    for i, spec in enumerate(masks):
+        label = f"mask {i}" + (f" ({spec['name']})" if spec.get("name") else f" ({spec.get('type')})")
+        wgt = mask_weight(spec, x)
+        y = apply_local(x, spec.get("adjust") or {}, warns, label)
+        x = x + (y - x) * wgt[..., None]
+        cov = float((wgt > 0.5).mean())
+        if cov < 0.002:
+            warns.append(f"{label} covers almost nothing; check its placement in the _masks.jpg overlay")
+        entry = {"index": i, "type": spec.get("type"), "name": spec.get("name"), "coverage": round(cov, 3),
+                 "mean_weight": round(float(wgt.mean()), 3), "tint": ["red", "cyan", "yellow", "green"][i % 4]}
+        ws = resize2d(wgt, wh)
+        band = np.abs(ws - 0.5) < 0.12
+        if band.any():  # the boundary pixel sitting on the strongest picture edge: where a halo would show
+            iy, ix = np.unravel_index(int(np.argmax(np.where(band, grad, -1.0))), grad.shape)
+            entry["edge_point"] = [round(ix / ws.shape[1], 4), round(iy / ws.shape[0], 4)]
+        info.append(entry)
+        tint = np.array(MASK_TINTS[i % len(MASK_TINTS)], dtype=np.float32)
+        overlay = overlay * (1.0 - 0.55 * wgt[..., None]) + tint * (0.55 * wgt[..., None])
+    report["masks"] = info
+    return np.clip(x, 0.0, 1.0), np.clip(overlay, 0.0, 1.0)
+
+
 def grade_array(rgb: np.ndarray, params: dict, report: dict | None = None) -> np.ndarray:
     report = report if report is not None else {}
     x = stage_exposure_wb(rgb, params, report)
@@ -370,19 +486,51 @@ def grade_array(rgb: np.ndarray, params: dict, report: dict | None = None) -> np
         path = lut["path"] if os.path.isabs(lut["path"]) else os.path.join(ROOT, lut["path"])
         x = apply_lut(x, lut_from_cube(path), float(lut.get("strength", 1.0)))
     x = stage_skin_protect(rgb, x, float(params.get("skin_protect", 0.6)), report)
+    x, overlay = stage_masks(x, params, report)  # local edits ride on top of the global grade
+    if overlay is not None:
+        report["_mask_overlay"] = overlay
     return stage_effects(x, params, report)
 
 
 # --- IO -----------------------------------------------------------------------
 
-def save(x: np.ndarray, path: str, quality: int = 95) -> None:
+def save(x: np.ndarray, path: str, quality: int = 95, recipe: dict | None = None) -> None:
+    """Write sRGB output. With `recipe`, the full edit (params, masks, stats) is embedded in the JPEG's EXIF so
+    `explain.py` can list exactly what changed later, in any session, without a sidecar file."""
     img = Image.fromarray((np.clip(x, 0, 1) * 255 + 0.5).astype(np.uint8), "RGB")
     icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
     ext = os.path.splitext(path)[1].lower()
+    kw = {}
+    if recipe is not None:
+        exif = Image.Exif()
+        n_masks = len(recipe.get("masks") or [])
+        exif[0x010E] = f"darkroom-agent {recipe.get('version', '')}: scene {recipe.get('scene') or 'base'}, {n_masks} mask(s)"
+        exif[0x0131] = f"darkroom-agent {recipe.get('version', '')}"  # Software
+        body = json.dumps(recipe, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+        exif.get_ifd(0x8769)[RECIPE_TAG] = b"ASCII\x00\x00\x00" + body
+        kw["exif"] = exif.tobytes()
     if ext in (".jpg", ".jpeg"):
-        img.save(path, quality=quality, subsampling=0, icc_profile=icc)
+        img.save(path, quality=quality, subsampling=0, icc_profile=icc, **kw)
     else:
-        img.save(path, icc_profile=icc)
+        img.save(path, icc_profile=icc, **kw)
+
+
+def read_recipe(path: str) -> dict | None:
+    """Recipe embedded by save(); None if the file has none."""
+    try:
+        raw = Image.open(path).getexif().get_ifd(0x8769).get(RECIPE_TAG)
+    except Exception:
+        return None
+    if raw is None:
+        return None
+    if isinstance(raw, bytes):
+        raw = raw[8:] if raw[:5] in (b"ASCII", b"UNICO") else raw
+        raw = raw.decode("utf-8", "replace")
+    raw = raw.strip("\x00 ")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
 
 
 def side_by_side(a: np.ndarray, b: np.ndarray, height: int = 900, gap: int = 12) -> np.ndarray:
@@ -398,7 +546,7 @@ def side_by_side(a: np.ndarray, b: np.ndarray, height: int = 900, gap: int = 12)
     return canvas
 
 
-def detail_crops(before: np.ndarray, after: np.ndarray, size: int = 384):
+def detail_crops(before: np.ndarray, after: np.ndarray, size: int = 384, extra=None):
     """1:1 crops (at output resolution) of the brightest block, the most textured dark block and, if present,
     the skin region: before | after, one row each. Picked on the *before* image so rows match across rounds."""
     h, w = before.shape[:2]
@@ -414,6 +562,8 @@ def detail_crops(before: np.ndarray, after: np.ndarray, size: int = 384):
     if 0.02 < float(m.mean()) < 0.25:  # same threshold as analyze.py's skin_mask_unreliable flag
         ys, xs = np.nonzero(m)
         picks.append(("skin (detector guess)", int(np.median(ys)) // bs, int(np.median(xs)) // bs))
+    for label, fx, fy in (extra or []):  # requested points, as fractions of width/height
+        picks.append((label, int(np.clip(fy, 0, 0.999) * h) // bs, int(np.clip(fx, 0, 0.999) * w) // bs))
     gap_v = np.full((size, 8, 3), 0.08, dtype=np.float32)
     rows = []
     for _, iy, ix in picks:
@@ -425,7 +575,8 @@ def detail_crops(before: np.ndarray, after: np.ndarray, size: int = 384):
     out = rows[0]
     for r in rows[1:]:
         out = np.concatenate([out, gap_h, r], axis=0)
-    return out, [p[0] for p in picks]
+    points = [{"row": p[0], "x": round((p[2] * bs + bs // 2) / w, 3), "y": round((p[1] * bs + bs // 2) / h, 3)} for p in picks]
+    return out, [p[0] for p in picks], points
 
 
 def stats(x: np.ndarray) -> dict:
@@ -445,6 +596,8 @@ def main() -> int:
     ap.add_argument("--out")
     ap.add_argument("--preview", action="store_true", help="small, fast render for iteration (1400 px long edge)")
     ap.add_argument("--compare", action="store_true", help="also write a before|after image and 1:1 detail crops (_compare.jpg, _detail.jpg)")
+    ap.add_argument("--crop", action="append", default=[], metavar="X,Y",
+                    help="with --compare: add a 1:1 detail crop centred at X,Y (fractions of width,height); repeatable")
     ap.add_argument("--max-size", type=int, default=3072, help="long edge of the output (default 3072; --preview uses 1400). 4096 = full size for 12 MP phone photos, ~1.9GB RAM")
     ap.add_argument("--quality", type=int, default=95, help="JPEG quality (default 95)")
     ap.add_argument("--no-source-adjust", action="store_true", help="skip per-device offsets")
@@ -489,16 +642,32 @@ def main() -> int:
             val = v
         set_dotted(params, k.strip(), val)
 
+    params = {k: v for k, v in params.items() if not k.startswith("_")}  # underscore keys are comments
+    if isinstance(params.get("masks"), list):
+        params["masks"] = [{k: v for k, v in m.items() if not k.startswith("_")} for m in params["masks"] if isinstance(m, dict)]
     unknown = sorted(set(params) - KNOWN_KEYS)
     report: dict = {"source_class": sc, "scene": a.scene, "source_offsets_applied": applied_offsets}
     if unknown:
         report["warnings"] = [f"unknown parameters ignored: {unknown}"]
 
     out = grade_array(img.rgb, params, report)
+    overlay = report.pop("_mask_overlay", None)
 
     stem = os.path.splitext(os.path.basename(a.photo))[0]
     out_path = a.out or f"{stem}_{'preview' if a.preview else 'graded'}.jpg"
-    save(out, out_path, a.quality)
+    recipe = {
+        "tool": "darkroom-agent", "version": VERSION, "created": __import__("datetime").datetime.now().isoformat(timespec="seconds"),
+        "source": os.path.basename(a.photo), "source_class": sc, "look": None if a.look == "none" else a.look, "scene": a.scene,
+        "params": {k: v for k, v in params.items() if k != "masks"}, "masks": params.get("masks") or [],
+        "auto_exposure_ev": report.get("auto_exposure_ev"), "mask_info": report.get("masks"),
+        "before": stats(img.rgb), "after": stats(out),
+        "input_size": [img.meta.get("original_width"), img.meta.get("original_height")], "size": [int(out.shape[1]), int(out.shape[0])],
+    }
+    save(out, out_path, a.quality, recipe=recipe)
+    if overlay is not None and (a.preview or a.compare):  # tinted placement check; never written beside a delivered file
+        ov_path = os.path.splitext(out_path)[0] + "_masks.jpg"
+        save(overlay, ov_path, 88)
+        report["mask_overlay"] = ov_path
     report.update(output=out_path, size=[int(out.shape[1]), int(out.shape[0])],
                   input_size=[img.meta.get("original_width"), img.meta.get("original_height")],
                   before=stats(img.rgb), after=stats(out), effective_params=params)
@@ -506,10 +675,13 @@ def main() -> int:
         cmp_path = os.path.splitext(out_path)[0] + "_compare.jpg"
         save(side_by_side(img.rgb, out), cmp_path, 90)
         report["compare"] = cmp_path
-        det, names = detail_crops(img.rgb, out)
+        extra = [(f"mask {m['index']} edge", *m["edge_point"]) for m in report.get("masks", []) if m.get("edge_point")]
+        extra += [("crop " + c, *map(float, c.split(","))) for c in a.crop]
+        det, names, points = detail_crops(img.rgb, out, extra=extra)
         det_path = os.path.splitext(out_path)[0] + "_detail.jpg"
         save(det, det_path, 92)
-        report["detail"] = {"path": det_path, "rows": names, "note": "1:1 crops at output resolution, before | after"}
+        report["detail"] = {"path": det_path, "rows": names, "points": points,
+                            "note": "1:1 crops at output resolution, before | after; points are crop centres as fractions"}
     print(json.dumps(report, indent=2))
     return 0
 

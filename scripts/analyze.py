@@ -18,6 +18,56 @@ from common import blur, luma, resize_rgb_float, rgb_to_hsv, skin_mask, srgb_to_
 from ingest import LoadError, load  # noqa: E402
 
 
+def _largest_blob(grid: np.ndarray):
+    """Largest 4-connected component of a boolean block grid -> ((y0, x0, y1, x1), cell_count) or None."""
+    gh, gw = grid.shape
+    seen = np.zeros_like(grid, dtype=bool)
+    best = None
+    for sy in range(gh):
+        for sx in range(gw):
+            if not grid[sy, sx] or seen[sy, sx]:
+                continue
+            stack, cells = [(sy, sx)], []
+            seen[sy, sx] = True
+            while stack:
+                y, x = stack.pop()
+                cells.append((y, x))
+                for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                    if 0 <= ny < gh and 0 <= nx < gw and grid[ny, nx] and not seen[ny, nx]:
+                        seen[ny, nx] = True
+                        stack.append((ny, nx))
+            if best is None or len(cells) > best[1]:
+                ys, xs = [c[0] for c in cells], [c[1] for c in cells]
+                best = ((min(ys), min(xs), max(ys) + 1, max(xs) + 1), len(cells))
+    return best
+
+
+def regions(L: np.ndarray, skin: np.ndarray) -> dict:
+    """Bounding boxes (fractions of width/height, displayed frame) of the brightest blob, the largest skin blob and the
+    darkest area, as starting points for mask placement: use `center` as the mask centre and about half the larger
+    `size` as the radius."""
+    h, w = L.shape
+    bs = max(8, min(h, w) // 40)
+    gh, gw = h // bs, w // bs
+    Lb = L[:gh * bs, :gw * bs].reshape(gh, bs, gw, bs).mean(axis=(1, 3))
+    Sb = skin[:gh * bs, :gw * bs].reshape(gh, bs, gw, bs).mean(axis=(1, 3))
+
+    def pack(b):
+        if not b:
+            return None
+        (y0, x0, y1, x1), n = b
+        return {"bbox": [round(x0 * bs / w, 3), round(y0 * bs / h, 3), round(x1 * bs / w, 3), round(y1 * bs / h, 3)],
+                "center": [round((x0 + x1) * bs / 2 / w, 3), round((y0 + y1) * bs / 2 / h, 3)],
+                "size": [round((x1 - x0) * bs / w, 3), round((y1 - y0) * bs / h, 3)], "frac": round(n / (gh * gw), 4)}
+
+    return {
+        "brightest": pack(_largest_blob(Lb >= max(0.6, float(np.percentile(Lb, 97))))),
+        "skin": pack(_largest_blob(Sb > 0.5)) if bool((Sb > 0.5).any()) else None,
+        "darkest": pack(_largest_blob(Lb <= float(np.percentile(Lb, 10)))),
+        "note": "fractions of width/height in the displayed frame; mask centre = center, radius ≈ half the larger size",
+    }
+
+
 def analyze_array(rgb: np.ndarray, meta: dict) -> dict:
     h, w = rgb.shape[:2]
     s = 1024 / max(h, w)
@@ -77,7 +127,7 @@ def analyze_array(rgb: np.ndarray, meta: dict) -> dict:
         flags.append("shadows_already_crushed")
     if spread < 0.6:
         flags.append("low_contrast_flat")
-    if conf > 0.03 and cast["temp"] in ("warm", "cool"):
+    if conf > 0.05 and cast["temp"] in ("warm", "cool"):  # same threshold the guide uses for acting on it
         flags.append(f"{cast['temp']}_cast")
     if skin["fraction"] > 0.02:
         flags.append("skin_present")
@@ -97,6 +147,7 @@ def analyze_array(rgb: np.ndarray, meta: dict) -> dict:
         "colour": {"mean_saturation": round(float(hsv[..., 1][hsv[..., 2] > 0.1].mean()), 3), "cast": cast},
         "skin": skin,
         "quality": {"noise_sigma": round(noise, 4), "detail": round(detail, 4)},
+        "regions": regions(L, sm),
         "flags": flags,
     }
 

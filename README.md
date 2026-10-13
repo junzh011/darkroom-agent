@@ -1,6 +1,6 @@
 # darkroom-agent
 
-A Claude skill that colour-grades photos in a dark, moody, cinematic style, for people who don't want to learn Lightroom.
+A Claude skill that colour-grades photos in a dark, moody style, with local edits (masks) placed by Claude from what's in the frame, for people who don't want to learn Lightroom.
 Upload a photo, ask Claude to "make it dark and moody", and it measures the photo, adapts the look to it,
 checks its own result, and hands back the edit plus a plain-English rundown of what changed.
 
@@ -27,6 +27,10 @@ out of the box on a Mac; on Windows or Linux add `pip install pillow-heif`. RAW/
 
 - `scripts/analyze.py` measures exposure, contrast, colour cast, skin, noise and the source device.
 - `scripts/grade.py` renders a grade from a look file plus overrides (numpy + Pillow only).
+- Local edits: a `masks` list (radial, linear, luminosity, colour range, or a mask image) applied on top of the global grade,
+  with a tinted overlay and 1:1 edge crops for checking. Where a mask goes is Claude's call from what it sees in the photo.
+- Every delivered JPEG carries its full recipe in its metadata: `python3 scripts/explain.py photo_graded.jpg` lists exactly
+  what changed, and `--params` re-exports the settings to re-render with a tweak.
 - `looks/` holds the looks; `references/grading-guide.md` holds the judgment rules Claude follows.
 
 Try it directly:
@@ -40,7 +44,7 @@ python3 scripts/grade.py photo.jpg --look dark-larp --preview --compare
 Early. The `dark-larp` look is calibrated on 6 iPhone before/after pairs with `tools/calibrate.py`:
 the night base comes from 8 edits and the daylight scene from 3; the remaining scenes come from one example each, and the two opt-in styles (`quiet-luxury`, `cool-muted`) are only used when someone asks for that feel.
 Offsets for ProRAW and camera RAW are untested on real files.
-Global adjustments only, with no masking or local dodge and burn yet.
+Local edits via masks (radial, linear, luminosity, colour range, or a mask image), placed by Claude from what it sees; no retouching or object removal.
 Delivery defaults to a 4096 px long edge (12.6 MP), so 24 MP iPhone photos come back smaller unless `--max-size 6000` is
 passed, which needs about 4 GB of RAM.
 
