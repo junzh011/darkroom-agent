@@ -4,9 +4,9 @@
 Pairs live in a folder as NN_before.<ext> / NN_after.<ext>.
 
   fit   For each pair, find the global slider values that best turn the before into the after.
-        python tools/calibrate.py fit evals/larp-shoot-1 --out work/fit.json
+        python tools/calibrate.py fit evals/shoot-1 --out work/fit.json
   eval  Render each before with a look and score it against the after; writes before|ours|yours strips.
-        python tools/calibrate.py eval evals/larp-shoot-1 --look dark-larp --out-dir work/eval
+        python tools/calibrate.py eval evals/shoot-1 --look moody --out-dir work/eval
 
 Error is mean absolute difference in sRGB (0..1) at a small working size, so ~0.02 is close and ~0.1 is clearly off.
 """
@@ -207,7 +207,7 @@ def main() -> int:
     f.add_argument("--only", help="comma-separated pair numbers, e.g. 07,09")
     e = sub.add_parser("eval")
     e.add_argument("folder")
-    e.add_argument("--look", default="dark-larp")
+    e.add_argument("--look", default="moody")
     e.add_argument("--scene", help="scene variant from the look, applied to every pair evaluated")
     e.add_argument("--only", help="comma-separated pair numbers, e.g. 07,09")
     e.add_argument("--out-dir", default="work/eval")

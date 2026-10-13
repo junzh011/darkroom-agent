@@ -2,8 +2,8 @@
 """Colour-grade a photo from a look + parameter overrides.
 
 Examples:
-  python grade.py photo.jpg --look dark-larp --preview --compare
-  python grade.py photo.heic --look dark-larp --set exposure_ev=0.3 --set color_grade.shadows.hue=200
+  python grade.py photo.jpg --look moody --preview --compare
+  python grade.py photo.heic --look moody --set exposure_ev=0.3 --set color_grade.shadows.hue=200
   python grade.py photo.jpg --params my_params.json --out final.jpg
 
 Parameter reference: see references/grading-guide.md. Every parameter is optional;
@@ -589,7 +589,7 @@ def stats(x: np.ndarray) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("photo", nargs="?")
-    ap.add_argument("--look", default="dark-larp", help="look name in looks/ or a path; 'none' for neutral")
+    ap.add_argument("--look", default="moody", help="look name in looks/ or a path; 'none' for neutral")
     ap.add_argument("--scene", help="scene variant defined inside the look (see --list-looks)")
     ap.add_argument("--params", help="JSON file merged on top of the look")
     ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="override, dotted keys, JSON values")

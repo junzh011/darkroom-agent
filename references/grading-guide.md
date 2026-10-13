@@ -28,7 +28,7 @@ All optional; omitted = neutral. Ranges are the useful range, not hard limits.
 | `saturation` | −1…1 | Global saturation multiplier. |
 | `color_grade` | `{shadows, midtones, highlights}` each `{hue°, sat 0…1, lum −1…1}`, `balance` −1…1, `blend` 0…1 | Three-way colour wheels. Shadow sat above ~0.3 starts tinting neutral dark clothing visibly. |
 | `lut` | `{path, strength}` | 3D `.cube` LUT, path relative to the skill root or absolute. |
-| `skin_protect` | 0…1 (engine default 0.6; the dark-larp look sets 0.5) | Pulls the hue of detected skin back toward the original after colour work. Raise for portraits, lower for stylised looks. |
+| `skin_protect` | 0…1 (engine default 0.6; the moody look sets 0.5) | Pulls the hue of detected skin back toward the original after colour work. Raise for portraits, lower for stylised looks. |
 | `clarity` | −1…1 | Midtone local contrast. Exaggerates compression artifacts on re-saved images. |
 | `sharpen` | −1…1 | Fine detail; negative softens. Phone files are already sharpened. |
 | `halation` | `{amount 0…0.3, threshold, radius, color}` | Warm glow around bright areas (film halation). `radius` is a fraction of the long edge. |
@@ -42,7 +42,7 @@ Compare before and after within one report, and treat thresholds as approximate.
 
 ## Scenes (measured from the author's own edits)
 
-Pick the scene by looking at the photo, then pass `--scene`. Values are in `looks/dark-larp.json`.
+Pick the scene by looking at the photo, then pass `--scene`. Values are in `looks/moody.json`.
 A scene's values **replace** the base's for the keys it sets (they don't add to them), so read `effective_params` in the
 report to see what actually ran.
 Each scene comes from only 1–3 example edits, so treat the numbers as a starting point and use your eyes.

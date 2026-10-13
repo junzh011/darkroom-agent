@@ -1,5 +1,5 @@
 {
-  "_status": "Calibrated 2026-10-10 on 9 iPhone before/after pairs (evals/larp-shoot-1, tools/calibrate.py). Base = median of 8 pairs (02 excluded as a different style). Leave-one-out error 0.029 vs 0.070 unedited.",
+  "_status": "Calibrated 2026-10-10 on 9 iPhone before/after pairs (evals/shoot-1, tools/calibrate.py). Base = median of 8 pairs (02 excluded as a different style). Leave-one-out error 0.029 vs 0.070 unedited.",
   "_description": "The author's signature: mid-tones pulled down with brightness while lights stay bright, a little warmer, colour slightly richer. No grain, vignette, or colour wash.",
   "exposure_ev": -0.14,
   "brightness": -0.33,

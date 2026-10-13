@@ -36,12 +36,12 @@ out of the box on a Mac; on Windows or Linux add `pip install pillow-heif`. RAW/
 Try it directly:
 
 ```bash
-python3 scripts/grade.py photo.jpg --look dark-larp --preview --compare
+python3 scripts/grade.py photo.jpg --look moody --preview --compare
 ```
 
 ## Status
 
-Early. The `dark-larp` look is calibrated on 6 iPhone before/after pairs with `tools/calibrate.py`:
+Early. The `moody` look is calibrated on 6 iPhone before/after pairs with `tools/calibrate.py`:
 the night base comes from 8 edits and the daylight scene from 3; the remaining scenes come from one example each, and the two opt-in styles (`quiet-luxury`, `cool-muted`) are only used when someone asks for that feel.
 Offsets for ProRAW and camera RAW are untested on real files.
 Local edits via masks (radial, linear, luminosity, colour range, or a mask image), placed by Claude from what it sees; no retouching or object removal.
@@ -51,6 +51,6 @@ passed, which needs about 4 GB of RAM.
 Re-calibrate after adding pairs to `evals/`:
 
 ```bash
-python3 tools/calibrate.py fit evals/larp-shoot-1 --out work/fit.json
-python3 tools/calibrate.py eval evals/larp-shoot-1 --look dark-larp --out-dir work/eval
+python3 tools/calibrate.py fit evals/shoot-1 --out work/fit.json
+python3 tools/calibrate.py eval evals/shoot-1 --look moody --out-dir work/eval
 ```

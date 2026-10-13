@@ -1,6 +1,6 @@
 ---
 name: darkroom-agent
-description: Colour-grades photos in a dark, moody style (mid-tones pulled down hard while lights stay bright, slightly richer colour, natural white balance) and adapts the grade to each photo's scene and device (iPhone HEIC/ProRAW, camera RAW, JPEG). Use when the user shares a photo and asks to edit, grade, colour-correct, or make it dark, moody, cinematic, "flex" or "larp" style, or wants a preset/LUT look applied to their photo.
+description: Colour-grades photos in a dark, moody style (mid-tones pulled down hard while lights stay bright, slightly richer colour, natural white balance) and adapts the grade to each photo's scene and device (iPhone HEIC/ProRAW, camera RAW, JPEG). Use when the user shares a photo and asks to edit, grade, colour-correct, or make it dark, moody, cinematic or "flex" style, or wants a preset/LUT look applied to their photo.
 ---
 
 # Darkroom Agent
@@ -47,7 +47,7 @@ and `params.json` go there; only the final file goes next to the photo. Shells d
    round 1 may include the mask for it on top of the scene defaults; add `--crop X,Y` on that region so you judge it at 1:1. Keep amounts
    modest (the engine clamps them) and look for halos in the detail crops. Masks ride on top of the global grade, so the
    calibrated look stays intact.
-4. **Preview.** Round 1: `python3 scripts/grade.py PHOTO --look dark-larp --scene night --preview --compare --out $WORK/preview1.jpg`;
+4. **Preview.** Round 1: `python3 scripts/grade.py PHOTO --look moody --scene night --preview --compare --out $WORK/preview1.jpg`;
    later rounds add `--params $WORK/params.json`. The script prints a JSON report: before/after stats and `effective_params`,
    the values that actually ran (a scene **replaces** the base's values for the keys it sets; it doesn't add to them).
    View `$WORK/preview1_compare.jpg` for the overall mood and `$WORK/preview1_detail.jpg` (1:1 crops of the brightest, the
@@ -55,7 +55,7 @@ and `params.json` go there; only the final file goes next to the photo. Shells d
 5. **Critique** the before|after against this checklist, adjust, re-preview. Stop after 3 rounds or when it passes:
    - Subject reads clearly; the eye goes where it should.
    - Skin looks like skin — not grey, green, or orange — unless the user asked for a stylised look.
-   - Dark clothing/gear still has texture (common in LARP shots: black outfits, leather, armour). If it's a flat blob, raise `shadows` or lower the `blacks` crush.
+   - Dark clothing/gear still has texture (black outfits, leather, dark cars). If it's a flat blob, raise `shadows` or lower the `blacks` crush.
    - Large whites (shirts, knitwear, snow, paper; not lamps or other light sources, which go cream under the warm base by design) stay white: grey means raise `highlights` or `whites`; yellow means lower `wb.temp`.
    - No halos: a lifted face or a burned sky must not show a glow or a dark ring at the mask edge in the detail crops. If it does,
      widen `feather`, turn on `refine`, or reduce the amount.
