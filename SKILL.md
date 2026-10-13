@@ -69,7 +69,8 @@ and `params.json` go there; only the final file goes next to the photo. Shells d
    downsized, and the report's `input_size` vs `size` shows it, so tell the user if their file came back smaller). Put the result where the user will find it: in Claude Code, next to the original
    as `<name>_graded.jpg` unless they name a folder; in claude.ai, `/mnt/user-data/outputs/`. If they want full size for a 24 MP
    phone photo, rerun with `--max-size 6000` (needs about 4 GB of RAM).
-   Share the image and 3–5 plain-language bullets on what you did ("pulled the background down", "kept the lamp bright", "richer reds").
+   Share the image and at most 2–3 short plain-language bullets on what you did ("pulled the background down", "kept the lamp
+   bright"). No numbers or setting names unless asked (see below).
    Offer quick tweaks ("moodier", "warmer", "less saturated", "brighter face") and map them to parameters with the guide's phrase table.
    Keep `$WORK/params.json` for the session; if the user loves the result, offer to save it as a new look in `looks/`.
    Every delivered JPEG carries its full recipe (scene, every setting, every mask, before/after numbers) in its metadata.
