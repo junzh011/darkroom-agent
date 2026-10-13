@@ -30,6 +30,8 @@ Early. The `dark-larp` look is calibrated on 6 iPhone before/after pairs with `t
 the night base comes from 8 edits and the daylight scene from 3; the remaining scenes come from one example each, and the two opt-in styles (`quiet-luxury`, `cool-muted`) are only used when someone asks for that feel.
 Offsets for ProRAW and camera RAW are untested on real files.
 Global adjustments only, with no masking or local dodge and burn yet.
+Delivery defaults to a 4096 px long edge (12.6 MP), so 24 MP iPhone photos come back smaller unless `--max-size 6000` is
+passed, which needs about 4 GB of RAM.
 
 Re-calibrate after adding pairs to `evals/`:
 

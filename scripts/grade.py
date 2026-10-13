@@ -398,6 +398,36 @@ def side_by_side(a: np.ndarray, b: np.ndarray, height: int = 900, gap: int = 12)
     return canvas
 
 
+def detail_crops(before: np.ndarray, after: np.ndarray, size: int = 384):
+    """1:1 crops (at output resolution) of the brightest block, the most textured dark block and, if present,
+    the skin region: before | after, one row each. Picked on the *before* image so rows match across rounds."""
+    h, w = before.shape[:2]
+    size = int(min(size, h, w))
+    bs = max(16, size // 4)
+    gh, gw = h // bs, w // bs
+    L = luma(before)[:gh * bs, :gw * bs].reshape(gh, bs, gw, bs)
+    mean, std = L.mean(axis=(1, 3)), L.std(axis=(1, 3))
+    picks = [("brightest", *np.unravel_index(int(np.argmax(mean)), mean.shape))]
+    tex = np.where(mean < np.percentile(mean, 35), std, -1.0)
+    picks.append(("dark texture", *np.unravel_index(int(np.argmax(tex)), tex.shape)))
+    m = skin_mask(before) > 0.5
+    if 0.02 < float(m.mean()) < 0.25:  # same threshold as analyze.py's skin_mask_unreliable flag
+        ys, xs = np.nonzero(m)
+        picks.append(("skin (detector guess)", int(np.median(ys)) // bs, int(np.median(xs)) // bs))
+    gap_v = np.full((size, 8, 3), 0.08, dtype=np.float32)
+    rows = []
+    for _, iy, ix in picks:
+        cy, cx = iy * bs + bs // 2, ix * bs + bs // 2
+        y0 = int(np.clip(cy - size // 2, 0, h - size))
+        x0 = int(np.clip(cx - size // 2, 0, w - size))
+        rows.append(np.concatenate([before[y0:y0 + size, x0:x0 + size], gap_v, after[y0:y0 + size, x0:x0 + size]], axis=1))
+    gap_h = np.full((8, rows[0].shape[1], 3), 0.08, dtype=np.float32)
+    out = rows[0]
+    for r in rows[1:]:
+        out = np.concatenate([out, gap_h, r], axis=0)
+    return out, [p[0] for p in picks]
+
+
 def stats(x: np.ndarray) -> dict:
     L = luma(x[::3, ::3])
     return {"p1": round(float(np.percentile(L, 1)), 3), "p50": round(float(np.percentile(L, 50)), 3),
@@ -413,10 +443,10 @@ def main() -> int:
     ap.add_argument("--params", help="JSON file merged on top of the look")
     ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="override, dotted keys, JSON values")
     ap.add_argument("--out")
-    ap.add_argument("--preview", action="store_true", help="small, fast render for iteration")
-    ap.add_argument("--compare", action="store_true", help="also write a before|after image")
-    ap.add_argument("--max-size", type=int, default=3072, help="long edge of the output; 3072 is plenty for social and peaks ~1.5GB RAM")
-    ap.add_argument("--quality", type=int, default=95)
+    ap.add_argument("--preview", action="store_true", help="small, fast render for iteration (1400 px long edge)")
+    ap.add_argument("--compare", action="store_true", help="also write a before|after image and 1:1 detail crops (_compare.jpg, _detail.jpg)")
+    ap.add_argument("--max-size", type=int, default=3072, help="long edge of the output (default 3072; --preview uses 1400). 4096 = full size for 12 MP phone photos, ~1.9GB RAM")
+    ap.add_argument("--quality", type=int, default=95, help="JPEG quality (default 95)")
     ap.add_argument("--no-source-adjust", action="store_true", help="skip per-device offsets")
     ap.add_argument("--list-looks", action="store_true")
     a = ap.parse_args()
@@ -470,11 +500,16 @@ def main() -> int:
     out_path = a.out or f"{stem}_{'preview' if a.preview else 'graded'}.jpg"
     save(out, out_path, a.quality)
     report.update(output=out_path, size=[int(out.shape[1]), int(out.shape[0])],
+                  input_size=[img.meta.get("original_width"), img.meta.get("original_height")],
                   before=stats(img.rgb), after=stats(out), effective_params=params)
     if a.compare:
         cmp_path = os.path.splitext(out_path)[0] + "_compare.jpg"
         save(side_by_side(img.rgb, out), cmp_path, 90)
         report["compare"] = cmp_path
+        det, names = detail_crops(img.rgb, out)
+        det_path = os.path.splitext(out_path)[0] + "_detail.jpg"
+        save(det, det_path, 92)
+        report["detail"] = {"path": det_path, "rows": names, "note": "1:1 crops at output resolution, before | after"}
     print(json.dumps(report, indent=2))
     return 0
 

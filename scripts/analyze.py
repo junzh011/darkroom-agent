@@ -51,7 +51,8 @@ def analyze_array(rgb: np.ndarray, meta: dict) -> dict:
     skin = {"fraction": round(float(skin_px.mean()), 4)}
     if skin_px.sum() > 100:
         skin["mean_luma"] = round(float(L[skin_px].mean()), 3)
-        skin["mean_hue_deg"] = round(float(hsv[..., 0][skin_px].mean()), 1)
+        hr = np.deg2rad(hsv[..., 0][skin_px])  # circular mean: skin straddles the 0/360 red boundary
+        skin["mean_hue_deg"] = round(float(np.rad2deg(np.arctan2(np.sin(hr).mean(), np.cos(hr).mean())) % 360), 1)
         skin["mean_sat"] = round(float(hsv[..., 1][skin_px].mean()), 3)
 
     # noise: robust estimate from the Laplacian of a full-res centre crop
@@ -82,7 +83,7 @@ def analyze_array(rgb: np.ndarray, meta: dict) -> dict:
         flags.append("skin_present")
         if skin.get("mean_luma", 1) < 0.25:
             flags.append("skin_dark")
-        if skin["fraction"] > 0.40:
+        if skin["fraction"] > 0.25:
             flags.append("skin_mask_unreliable")  # warm stone/wood/sepia toning reads as skin; trust your eyes instead
     if noise > 0.02:
         flags.append("noisy")

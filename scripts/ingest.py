@@ -107,7 +107,9 @@ def _load_pillow(path: str, max_size: int) -> tuple[np.ndarray, dict]:
     except Exception as e:  # noqa: BLE001
         raise LoadError(f"Could not open {os.path.basename(path)} ({e}). Try exporting it as a JPEG.") from e
     meta = _read_exif(img)
+    meta["decoder"] = "pillow-heif" if ext in HEIF_EXT else "pillow"
     img = ImageOps.exif_transpose(img)
+    meta["original_width"], meta["original_height"] = img.size
     img = _to_srgb(img)
     if max(img.size) > max_size:
         s = max_size / max(img.size)
@@ -134,6 +136,7 @@ def _load_via_sips(path: str, max_size: int, what: str) -> tuple[np.ndarray, dic
             meta = {**_read_exif(Image.open(path)), **meta}
         except Exception:
             pass
+        meta["decoder"] = "sips"
         return arr, meta
 
 
@@ -162,7 +165,7 @@ def _load_raw(path: str, max_size: int) -> tuple[np.ndarray, dict]:
     if max(h, w) > max_size:
         s = max_size / max(h, w)
         rgb = resize_rgb_float(rgb, (round(w * s), round(h * s)))
-    meta: dict = {}
+    meta: dict = {"original_width": w, "original_height": h, "decoder": "rawpy"}
     try:  # many RAWs carry a JPEG preview with EXIF; Pillow can sometimes read the TIFF-ish container
         meta = _read_exif(Image.open(path))
     except Exception:
